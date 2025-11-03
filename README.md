@@ -63,22 +63,26 @@ Its core features include:
 ### Quick Setup for Ubuntu 24.04 with CUDA 13
 For Ubuntu 24.04 users with CUDA 13.x, we provide a one-liner setup script that handles all dependencies and configuration:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh | sudo bash
-```
-
-Or download and run manually:
+**Recommended (verify before running):**
 ```bash
 wget https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh
+# Review the script contents first
+less setup_ubuntu2404_cuda13.sh
 sudo bash setup_ubuntu2404_cuda13.sh
+```
+
+**Or if you trust the source:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh | sudo bash
 ```
 
 This script will:
 - ✓ Check system requirements (Ubuntu 24.04, CUDA 13.x)
 - ✓ Install all necessary system dependencies
 - ✓ Set up Python 3.12 and required packages
-- ✓ Install SGLang with CUDA 13 support
-- ✓ Create a systemd service for easy management
+- ✓ Install SGLang with CUDA 13 support in a virtual environment
+- ✓ Create a dedicated non-root user for running the service
+- ✓ Create a hardened systemd service for easy management
 - ✓ Verify the installation
 
 **Prerequisites:**

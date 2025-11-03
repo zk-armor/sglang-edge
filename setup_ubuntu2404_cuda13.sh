@@ -6,9 +6,14 @@
 # to set up SGLang on Ubuntu 24.04 with CUDA 13.x
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh | bash
-#   or
-#   bash setup_ubuntu2404_cuda13.sh
+#   RECOMMENDED (verify before running):
+#     wget https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh
+#     # Review the script contents first
+#     less setup_ubuntu2404_cuda13.sh
+#     sudo bash setup_ubuntu2404_cuda13.sh
+#
+#   Or if you trust the source:
+#     curl -fsSL https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh | sudo bash
 ################################################################################
 
 set -e  # Exit on error
@@ -206,23 +211,37 @@ install_protoc() {
 install_sglang() {
     log_info "Installing SGLang..."
     
+    # Create a dedicated user for running SGLang if it doesn't exist
+    if ! id -u sglang &>/dev/null; then
+        log_info "Creating dedicated sglang user..."
+        useradd --system --user-group --create-home --home-dir /opt/sglang sglang
+    fi
+    
     # Upgrade pip
     pip3 install --upgrade pip -q
     
     # Install uv for faster installation
     log_info "Installing uv package manager..."
     pip3 install uv -q
-    export UV_SYSTEM_PYTHON=true
     
     # Install SGLang with CUDA 13 dependencies
     log_info "Installing SGLang with CUDA 13.x support (this may take several minutes)..."
     CU_VERSION="cu130"
     
-    # Install SGLang
-    uv pip install "sglang" \
+    # Install SGLang in a virtual environment for better isolation
+    log_info "Setting up virtual environment..."
+    python3 -m venv /opt/sglang/venv
+    
+    # Install SGLang in the virtual environment
+    /opt/sglang/venv/bin/pip install --upgrade pip -q
+    /opt/sglang/venv/bin/pip install uv -q
+    /opt/sglang/venv/bin/uv pip install "sglang" \
         --extra-index-url https://download.pytorch.org/whl/${CU_VERSION} \
         --prerelease=allow \
         --index-strategy unsafe-best-match
+    
+    # Set ownership
+    chown -R sglang:sglang /opt/sglang
     
     log_info "SGLang installed ✓"
 }
@@ -231,9 +250,9 @@ install_sglang() {
 verify_installation() {
     log_info "Verifying SGLang installation..."
     
-    if python3 -c "import sglang" 2>/dev/null; then
+    if /opt/sglang/venv/bin/python -c "import sglang" 2>/dev/null; then
         log_info "SGLang import successful ✓"
-        SGLANG_VERSION=$(python3 -c "import sglang; print(sglang.__version__)" 2>/dev/null || echo "unknown")
+        SGLANG_VERSION=$(/opt/sglang/venv/bin/python -c "import sglang; print(sglang.__version__)" 2>/dev/null || echo "unknown")
         log_info "SGLang version: $SGLANG_VERSION"
     else
         log_error "SGLang installation verification failed"
@@ -242,9 +261,9 @@ verify_installation() {
     
     # Check torch and CUDA
     log_info "Verifying PyTorch CUDA support..."
-    python3 -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}')"
+    /opt/sglang/venv/bin/python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}')"
     
-    if python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+    if /opt/sglang/venv/bin/python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
         log_info "PyTorch CUDA support verified ✓"
     else
         log_warn "PyTorch CUDA support not detected. Please check your CUDA installation."
@@ -257,7 +276,6 @@ create_service() {
     
     # Create a directory for SGLang
     SGLANG_DIR="/opt/sglang"
-    mkdir -p $SGLANG_DIR
     
     # Create a sample systemd service file
     cat > /etc/systemd/system/sglang.service <<EOF
@@ -267,13 +285,21 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=sglang
+Group=sglang
 WorkingDirectory=$SGLANG_DIR
 Environment="CUDA_HOME=/usr/local/cuda"
 Environment="PATH=/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/usr/bin/python3 -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --host 0.0.0.0 --port 30000
+ExecStart=$SGLANG_DIR/venv/bin/python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --host 0.0.0.0 --port 30000
 Restart=on-failure
 RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$SGLANG_DIR
 
 [Install]
 WantedBy=multi-user.target
@@ -304,24 +330,30 @@ print_next_steps() {
     echo ""
     log_info "Quick Start Guide:"
     echo ""
-    echo "1. Test SGLang from command line:"
-    echo "   python3 -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --host 0.0.0.0 --port 30000"
+    echo "1. Set your HuggingFace token (required for model downloads):"
+    echo "   export HF_TOKEN=your_token_here"
+    echo "   echo 'export HF_TOKEN=your_token_here' >> ~/.bashrc"
     echo ""
-    echo "2. Or use the systemd service:"
+    echo "2. Start the service:"
     echo "   sudo systemctl start sglang"
     echo "   sudo systemctl enable sglang  # Enable on boot"
     echo ""
-    echo "3. Check the server status:"
+    echo "3. Test from command line (as sglang user):"
+    echo "   sudo -u sglang HF_TOKEN=\$HF_TOKEN /opt/sglang/venv/bin/python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --host 0.0.0.0 --port 30000"
+    echo ""
+    echo "4. Check the server status:"
     echo "   curl http://localhost:30000/health"
     echo ""
-    echo "4. Documentation:"
+    echo "5. Documentation:"
     echo "   https://docs.sglang.ai/"
     echo ""
-    echo "5. Example usage:"
-    echo "   python3 -m sglang.bench_serving --model meta-llama/Llama-3.1-8B-Instruct"
+    echo "6. Quick start guide:"
+    echo "   See QUICKSTART_UBUNTU2404.md for detailed examples"
     echo ""
-    log_info "Note: Make sure to set your HuggingFace token for model downloads:"
-    echo "   export HF_TOKEN=your_token_here"
+    log_info "Security Notes:"
+    echo "- The service runs as the 'sglang' user (not root) for better security"
+    echo "- SGLang is installed in a virtual environment at /opt/sglang/venv"
+    echo "- The systemd service includes security hardening options"
     echo ""
     echo "================================================================================"
 }

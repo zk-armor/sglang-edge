@@ -125,11 +125,16 @@ fi
 # Test 11: Source functions and test them (non-destructive)
 echo -n "Test 11: Functions can be sourced... "
 # Extract functions only (not main execution)
-grep -A 1000 '^log_info()' "$SETUP_SCRIPT" | grep -B 1000 '^# Main execution' > /tmp/test_functions.sh
-if source /tmp/test_functions.sh 2>/dev/null; then
-    echo -e "${GREEN}PASS${NC}"
+if grep -A 1000 '^log_info()' "$SETUP_SCRIPT" | grep -B 1000 '^# Main execution' > /tmp/test_functions.sh 2>/dev/null; then
+    if source /tmp/test_functions.sh 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}"
+    else
+        echo -e "${RED}FAIL${NC} - Could not source functions"
+        rm -f /tmp/test_functions.sh
+        exit 1
+    fi
 else
-    echo -e "${RED}FAIL${NC}"
+    echo -e "${RED}FAIL${NC} - Could not extract functions from script"
     exit 1
 fi
 
