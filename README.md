@@ -59,6 +59,44 @@ Its core features include:
 - **Active Community**: SGLang is open-source and supported by a vibrant community with widespread industry adoption, powering over 300,000 GPUs worldwide.
 
 ## Getting Started
+
+### Quick Setup for Ubuntu 24.04 with CUDA 13
+For Ubuntu 24.04 users with CUDA 13.x, we provide a one-liner setup script that handles all dependencies and configuration:
+
+**Recommended (verify before running):**
+```bash
+wget https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh
+# Review the script contents first
+less setup_ubuntu2404_cuda13.sh
+sudo bash setup_ubuntu2404_cuda13.sh
+```
+
+**Or if you trust the source:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/zk-armor/sglang-edge/main/setup_ubuntu2404_cuda13.sh | sudo bash
+```
+
+This script will:
+- ✓ Check system requirements (Ubuntu 24.04, CUDA 13.x)
+- ✓ Install all necessary system dependencies
+- ✓ Set up Python 3.12 and required packages
+- ✓ Install SGLang with CUDA 13 support in a virtual environment
+- ✓ Create a dedicated non-root user for running the service
+- ✓ Create a hardened systemd service for easy management
+- ✓ Verify the installation
+
+**Prerequisites:**
+- Ubuntu 24.04
+- CUDA 13.x installed with NVIDIA drivers
+- Root/sudo access
+
+After installation, start the service:
+```bash
+sudo systemctl start sglang
+sudo systemctl enable sglang  # Enable on boot
+```
+
+### Other Installation Methods
 - [Install SGLang](https://docs.sglang.ai/get_started/install.html)
 - [Quick Start](https://docs.sglang.ai/basic_usage/send_request.html)
 - [Backend Tutorial](https://docs.sglang.ai/basic_usage/openai_api_completions.html)
